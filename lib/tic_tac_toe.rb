@@ -1,5 +1,6 @@
 require 'colorize'
 require_relative './output'
+require "byebug"
 
 class TicTacToe
   PLAYER_X = "X"
@@ -66,13 +67,78 @@ class TicTacToe
     end
   end
 
+  def display_winner
+    Output.write_new_line "\n\n\t#{winner_text} \n\n"
+  end
+
+  def commit_move
+    commit_move_as_human
+
+    display_winner if finished?
+
+    make_move_as_ai
+
+    display_winner if finished?
+  end
+
   # commit current cursor position
   # If the cell is occupied - there is nothing we can unfortunately
-  def commit_move
+  def commit_move_as_human
     return if cell_occupied?(@board[@cursor_y][@cursor_x])
 
     @board[@cursor_y][@cursor_x] = current_player
     @last_player_played = current_player
+  end
+
+  def make_move_as_ai
+    is_cell_available = false
+
+    random_x_id = nil
+    random_y_id = nil
+
+    while !is_cell_available
+      random_y_id, random_x_id = next_ai_move_coords
+
+      cell_value = @board[random_y_id][random_x_id]
+
+      is_cell_available = !cell_occupied?(cell_value)
+    end
+
+    @board[random_y_id][random_x_id] = PLAYER_O
+    @last_player_played = PLAYER_O
+  end
+
+  def selected_valid_ai_combinations
+    COMBINATIONS.reject do |winning_combo|
+      # [[0, 0], [0, 1], [0, 2]]
+      winning_combo.any? do |y, x| # reject if cell is occupied by player X
+        cell_occupied_by_player?(
+          cell_value_by_coords(x, y), PLAYER_X
+        )
+      end
+    end
+  end
+
+  def next_ai_move_coords
+    combos = selected_valid_ai_combinations.group_by do |combo|
+      # [[0, 0], [0, 1], [0, 2]]
+      combo.count do |y, x|
+        cell_occupied_by_player?(
+          cell_value_by_coords(x, y), PLAYER_O
+        )
+      end
+    end
+
+    # 2 => [ [0, 0], [0, 1], [0, 2], [0, 0], [0, 1], [0, 2], ]
+
+    max_combos = combos[combos.keys.max]
+
+    combination = max_combos.sample
+    next_combo = combination.find do |y, x|
+      cell_value_by_coords(x, y) == ' '
+    end
+
+    next_combo
   end
 
   private
@@ -97,7 +163,6 @@ class TicTacToe
   def can_move_to?(x, y)
     x <= 2 && x >= 0 && y >= 0 && y <= 2
   end
-
 
   def set_cursor(x, y)
     return unless can_move_to?(x, y)
@@ -146,7 +211,15 @@ class TicTacToe
     "It's a DRAW. Good job!".blue.on_red.blink
   end
 
+  def cell_value_by_coords(x, y)
+    @board[y][x]
+  end
+
   def cell_occupied?(val)
     val.start_with?(PLAYER_O) || val.start_with?(PLAYER_X)
+  end
+
+  def cell_occupied_by_player?(cell_val, player_alias)
+    cell_val.start_with?(player_alias)
   end
 end
